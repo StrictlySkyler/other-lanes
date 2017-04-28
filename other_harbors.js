@@ -12,7 +12,7 @@ module.exports = {
     return `
       <p>To which other lanes would you like to ship?</p>
       <ul class="lane-input-list">
-        ${Lanes.find().fetch().map(lane =>
+        ${Lanes.find({}, { sort: { name: 1 } }).fetch().map(lane =>
             `<li>
               <label>
                 <input
@@ -70,15 +70,18 @@ module.exports = {
 
   work: function (lane, manifest) {
     function check_completion () {
+      console.log('Checking completion for lane:', lane.name);
       let all_shipments_successful = _.every(complete, function (value) {
         return value == 0;
       });
 
       if (total_complete == targets.length && all_shipments_successful) {
+        console.log('Shipment successful for lane:', lane.name);
         exit_code = 0;
       }
 
       if (total_complete == targets.length) {
+        console.log('Ending shipment for lane:', lane.name);
         $H.call('Lanes#end_shipment', lane, exit_code, manifest)
       }
 
@@ -97,10 +100,11 @@ module.exports = {
     _.each(manifest, function (value, key) {
       let target_lane;
 
-      if (value && key != 'shipment_start_date') {
+      if (value && key != 'shipment_start_date' && key != 'prior_manifest') {
         target_lane = Lanes.findOne(key);
-        targets.push(target_lane);
       }
+
+      if (target_lane) targets.push(target_lane);
     });
 
     _.each(targets, function (target_lane) {
