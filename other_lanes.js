@@ -5,7 +5,7 @@ let Users;
 let Harbors;
 let Shipments;
 
-const NAME = 'other_harbors';
+const NAME = 'other_lanes';
 
 module.exports = {
   render_input: function (values) {
