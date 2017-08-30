@@ -53,14 +53,6 @@ module.exports = {
   },
 
   update: function (lane, values) {
-    let harbor = Harbors.findOne(lane.type);
-
-    harbor.lanes[lane._id] = {
-      manifest: values
-    };
-
-    Harbors.update(harbor._id, harbor);
-
     return true;
   },
 
