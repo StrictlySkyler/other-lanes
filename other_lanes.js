@@ -76,10 +76,7 @@ module.exports = {
       return all_shipments_successful;
     }
 
-    let shipment = Shipments.findOne({
-      lane: lane._id,
-      start: manifest.shipment_start_date
-    });
+    let shipment = Shipments.findOne({ _id: manifest.shipment_id });
     let complete = {};
     let total_complete = 0;
     let targets = [];
