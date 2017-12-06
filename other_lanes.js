@@ -1,4 +1,7 @@
-'use strict';
+
+require('child_process').execSync('npm i lodash');
+
+let _ = require('lodash');
 
 let Lanes;
 let Users;
@@ -34,7 +37,7 @@ module.exports = {
       <p>This shipment will start shipments to the following lanes:</p>
       <ul class="lane-list">
         ${Object.keys(manifest).map(lane => {
-          if (manifest[lane]) {
+          if (manifest[lane] == 'on') {
             lane = Lanes.findOne(lane);
             return `<li>${lane.name}</li>`;
           }
