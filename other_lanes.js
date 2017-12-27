@@ -4,19 +4,19 @@ require('child_process').execSync('npm i lodash');
 let _ = require('lodash');
 
 let Lanes;
-let Users;
 let Harbors;
 let Shipments;
 
 const NAME = 'other_lanes';
 
 module.exports = {
-  render_input: function (values) {
+  render_input: function (values, rendered_lane) {
     return `
       <p>To which other lanes would you like to ship?</p>
       <ul class="lane-input-list">
-        ${Lanes.find({}, { sort: { name: 1 } }).fetch().map(lane =>
-            `<li>
+        ${Lanes.find({}, { sort: { name: 1 } }).fetch().map((lane) => {
+          if (rendered_lane && lane._id != rendered_lane._id) return `
+            <li>
               <label>
                 <input
                   name=${lane._id}
@@ -25,24 +25,48 @@ module.exports = {
                 >
                 ${lane.name}
               </label>
-            </li>`
-          ).join('')
+            </li>
+          `;
+          return ``;
+        }).join('')
         }
       </ul>
-    `
+      <label>
+        <input
+          name=follow_charter
+          type=checkbox
+          ${values && values.follow_charter ? 'checked' : ''}
+        >
+        Follow Charter?
+      </label>
+    `;
   },
 
   render_work_preview: function (manifest) {
     return `
       <p>This shipment will start shipments to the following lanes:</p>
       <ul class="lane-list">
-        ${Object.keys(manifest).map(lane => {
-          if (manifest[lane] == 'on') {
-            lane = Lanes.findOne(lane);
-            return `<li>${lane.name}</li>`;
-          }
+        ${Object.keys(manifest).map(key => {
+          let lane;
+          if (manifest[key] == 'on') lane = Lanes.findOne(key);
+          if (lane) return `
+            <li>
+              <a
+                href="/lanes/${lane.name}/ship"
+                class="success button"
+              >${lane.name}</a>
+              <a
+                href="/lanes/${lane.name}/charter"
+                class="button"
+              >charter</a>
+            </li>
+          `;
+          return '';
         }).join('')}
       </ul>
+      <p>Followup lanes on each of these lanes' charter will ${
+        manifest.follow_charter ? '' : '<em>not</em> '
+      }be tracked.</p>
     `;
   },
 
@@ -56,103 +80,146 @@ module.exports = {
   },
 
   update: function (lane, values) {
-    return true;
+    if (! values[lane._id]) return true;
+
+    return false;
   },
 
   work: function (lane, manifest) {
-    function check_completion () {
+
+    let check_completion = function () {
       console.log('Checking completion for lane:', lane.name);
       let all_shipments_successful = _.every(complete, function (value) {
         return value == 0;
       });
+      let total_length = targets.length + followups.length;
 
-      if (total_complete == targets.length && all_shipments_successful) {
+      if (total_complete == total_length && all_shipments_successful) {
         console.log('Shipment successful for lane:', lane.name);
         exit_code = 0;
       }
 
-      if (total_complete == targets.length) {
+      if (total_complete == total_length) {
         console.log('Ending shipment for lane:', lane.name);
-        $H.call('Lanes#end_shipment', lane, exit_code, manifest)
+        $H.end_shipment(lane, exit_code, manifest);
       }
 
       return all_shipments_successful;
-    }
+    };
 
-    let shipment = Shipments.findOne({ _id: manifest.shipment_id });
-    let complete = {};
-    let total_complete = 0;
-    let targets = [];
-    let exit_code = 1;
+    let collect_followups = function (target_lane) {
+      let followups = [];
 
-    _.each(manifest, function (value, key) {
-      let target_lane;
+      if (target_lane.followup) {
+        let followup_lane = Lanes.findOne(target_lane.followup);
 
-      if (value && key != 'shipment_start_date' && key != 'prior_manifest') {
-        target_lane = Lanes.findOne(key);
+        followups.push(followup_lane);
+
+        followups = followups.concat(collect_followups(followup_lane));
       }
 
-      if (target_lane) targets.push(target_lane);
-    });
+      if (target_lane.salvage_plan) {
+        let salvage_plan_lane = Lanes.findOne(target_lane.salvage_plan);
 
-    _.each(targets, function (target_lane) {
-      //throw new Error('test');
-      let harbor = Harbors.findOne(target_lane.type);
-      let manifest = harbor.lanes[target_lane._id].manifest;
-      //TODO: get this from $H
-      let date = new Date();
-      let start_date = date.getFullYear() + '-' +
-        date.getMonth() + '-' +
-        date.getDate() + '-' +
-        date.getHours() + '-' +
-        date.getMinutes() + '-' +
-        date.getSeconds()
-      ;
+        followups.push(salvage_plan_lane);
 
-      let shipment_cursor = Shipments.find({
-        lane: target_lane._id,
-        start: start_date
-      });
+        followups = followups.concat(collect_followups(salvage_plan_lane));
+      }
 
-      let observer = shipment_cursor.observeChanges({
+      return followups;
+    };
 
-        added: function (id, fields) {
-          let lane_shipment = Shipments.findOne({
-            lane: target_lane._id,
-            start: start_date
-          });
+    let verify_lane_key = function (value, key) {
+      if (
+        value &&
+        key != 'shipment_start_date' &&
+        key != 'prior_manifest' &&
+        key != 'follow_charter' &&
+        key != 'shipment_id' &&
+        key != 'timestamp'
+      ) return true;
 
-          complete[lane_shipment._id] = false;
-        },
+      return false;
+    };
 
-        changed: function check_shipment_status (id, fields) {
-          if (
-            fields.active == false &&
-            (fields.exit_code == 0 || fields.exit_code)
-          ) {
-            total_complete++;
-            complete[id] = fields.exit_code;
-            observer.stop();
-            shipment.stdout.push({
-              date: new Date(),
-              result: (
-                'Lane "' +
-                target_lane.name + 
-                '" exited with code: ' +
-                fields.exit_code
-              )
-            });
-            Shipments.update(shipment._id, shipment);
+    let collect_target_list = function () {
+      _.each(manifest, function (value, key) {
+        let target_lane;
 
-            return check_completion();
-          }
+        if ( verify_lane_key(value, key) ) {
+          target_lane = Lanes.findOne(key);
+          targets.push(target_lane);
+        }
+
+        if (target_lane && manifest.follow_charter) {
+          followups = collect_followups(target_lane);
         }
       });
+    };
 
-      $H.call('Lanes#start_shipment', target_lane._id, manifest, start_date);
+    let check_shipment_status = function (id, fields) {
+      if (
+        fields.active == false &&
+        (fields.exit_code == 0 || fields.exit_code) &&
+        complete[id] === false
+      ) {
+        total_complete++;
+        complete[id] = fields.exit_code;
 
-    });
+        shipment.stdout.push({
+          date: new Date(),
+          result: (
+            'Lane "' +
+            Lanes.findOne(id).name +
+            '" exited with code: ' +
+            fields.exit_code
+          ),
+        });
+        Shipments.update(shipment._id, shipment);
+      }
+
+      return check_completion();
+    };
+
+    let observe_targets = function () {
+      let the_observed = targets.concat(followups);
+
+      _.each(the_observed, function (observed) {
+        complete[observed._id] = false;
+
+        let cursor = Shipments.find({ lane: observed._id });
+        let observer = cursor.observeChanges({
+          changed: function (id, fields) {
+            let lane_id = Shipments.findOne(id).lane;
+            check_shipment_status(lane_id, fields);
+            observer.stop();
+          },
+        });
+      });
+    };
+
+    let start_shipments = () => {
+      _.each(targets, (target_lane) => {
+        let harbor = Harbors.findOne(target_lane.type);
+        let target_manifest = harbor.lanes[target_lane._id].manifest;
+        $H.start_shipment(target_lane._id, target_manifest, start_date);
+      });
+    };
+
+    let shipment = Shipments.findOne(manifest.shipment_id);
+    let total_complete = 0;
+    let complete = {};
+    let targets = [];
+    let followups = [];
+    let exit_code = 1;
+    let start_date = manifest.shipment_start_date;
+
+    collect_target_list();
+
+    observe_targets();
+
+    start_shipments();
 
     return manifest;
-  }
+  },
 };
