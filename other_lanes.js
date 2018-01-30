@@ -157,25 +157,26 @@ module.exports = {
       });
     };
 
-    let check_shipment_status = function (id, fields) {
+    let check_shipment_status = function (lane_id, updated_shipment, observer) {
       if (
-        fields.active == false &&
-        (fields.exit_code == 0 || fields.exit_code) &&
-        complete[id] === false
+        updated_shipment.active == false &&
+        (updated_shipment.exit_code == 0 || updated_shipment.exit_code) &&
+        complete[lane_id] === false
       ) {
         total_complete++;
-        complete[id] = fields.exit_code;
+        complete[lane_id] = updated_shipment.exit_code;
 
         shipment.stdout.push({
           date: new Date(),
           result: (
             'Lane "' +
-            Lanes.findOne(id).name +
+            Lanes.findOne(lane_id).name +
             '" exited with code: ' +
-            fields.exit_code
+            updated_shipment.exit_code
           ),
         });
         Shipments.update(shipment._id, shipment);
+        observer.stop();
       }
 
       return check_completion();
@@ -188,11 +189,10 @@ module.exports = {
         complete[observed._id] = false;
 
         let cursor = Shipments.find({ lane: observed._id });
-        let observer = cursor.observeChanges({
-          changed: function (id, fields) {
-            let lane_id = Shipments.findOne(id).lane;
-            check_shipment_status(lane_id, fields);
-            observer.stop();
+        let observer = cursor.observe({
+          changed: function (newShipment) {
+            let lane_id = newShipment.lane;
+            check_shipment_status(lane_id, newShipment, observer);
           },
         });
       });
