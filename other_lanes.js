@@ -108,25 +108,26 @@ module.exports = {
     };
 
     let collect_followups = function (target_lane) {
-      let followups = [];
+      let downstream = [];
 
       if (target_lane.followup) {
         let followup_lane = Lanes.findOne(target_lane.followup);
 
-        followups.push(followup_lane);
+        downstream.push(followup_lane);
 
-        followups = followups.concat(collect_followups(followup_lane));
+        downstream = downstream.concat(collect_followups(followup_lane));
       }
 
       if (target_lane.salvage_plan) {
         let salvage_plan_lane = Lanes.findOne(target_lane.salvage_plan);
 
-        followups.push(salvage_plan_lane);
+        downstream.push(salvage_plan_lane);
 
-        followups = followups.concat(collect_followups(salvage_plan_lane));
+        downstream = downstream.concat(collect_followups(salvage_plan_lane));
       }
 
-      return followups;
+      console.log(downstream)
+      return downstream;
     };
 
     let verify_lane_key = function (value, key) {
@@ -152,7 +153,7 @@ module.exports = {
         }
 
         if (target_lane && manifest.follow_charter) {
-          followups = collect_followups(target_lane);
+          followups = followups.concat(collect_followups(target_lane));
         }
       });
     };
@@ -166,14 +167,25 @@ module.exports = {
         total_complete++;
         complete[lane_id] = updated_shipment.exit_code;
 
+        let lane = Lanes.findOne(lane_id);
+        let shipment_link = `/lanes/${
+          lane.name
+        }/ship/${
+          updated_shipment.start
+        }`;
+        let link_classes = `exit-code code-${updated_shipment.exit_code}`;
+        let result = `<a
+          class="${link_classes}"
+          href="${shipment_link}"
+        >Lane "${
+          lane.name
+        }" exited with code: ${
+          updated_shipment.exit_code
+        }</a>`;
+
         shipment.stdout.push({
           date: new Date(),
-          result: (
-            'Lane "' +
-            Lanes.findOne(lane_id).name +
-            '" exited with code: ' +
-            updated_shipment.exit_code
-          ),
+          result,
         });
         Shipments.update(shipment._id, shipment);
         observer.stop();
