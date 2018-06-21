@@ -7,7 +7,7 @@ let Lanes;
 let Harbors;
 let Shipments;
 
-const NAME = 'other_lanes';
+const NAME = 'other lanes';
 
 module.exports = {
   render_input: function (values, rendered_lane) {
