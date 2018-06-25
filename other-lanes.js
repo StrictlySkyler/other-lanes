@@ -191,6 +191,10 @@ module.exports = {
         observer.stop();
       }
 
+      if (updated_shipment.exit_code) {
+        return $H.end_shipment(lane, updated_shipment.exit_code, manifest);
+      }
+
       return check_completion();
     };
 
