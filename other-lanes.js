@@ -1,15 +1,16 @@
 
-require('child_process').execSync('npm i lodash');
-
-let _ = require('lodash');
+const pkgs = ['lodash'];
 
 let Lanes;
 let Harbors;
 let Shipments;
+let _;
 
-const NAME = 'other lanes';
+const name = 'other lanes';
 
 module.exports = {
+  next: () => _ = require('lodash'),
+
   render_input: function (values, rendered_lane) {
     return `
       <p>To which other lanes would you like to ship?</p>
@@ -76,7 +77,7 @@ module.exports = {
     Harbors = harbors;
     Shipments = shipments;
 
-    return NAME;
+    return { name, pkgs };
   },
 
   update: function (lane, values) {
