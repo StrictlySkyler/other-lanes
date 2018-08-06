@@ -1,36 +1,43 @@
 
-const pkgs = ['lodash'];
+let _;
 
 let Lanes;
 let Harbors;
 let Shipments;
-let _;
 
 const name = 'other lanes';
+const pkgs = ['lodash'];
 
 module.exports = {
-  next: () => _ = require('lodash'),
+  next: function () {
+    _ = require('lodash');
+  },
 
   render_input: function (values, rendered_lane) {
+    let lanes = Lanes.find({}, { sort: { name: 1 } }).fetch().map((lane) => {
+      if (rendered_lane && lane._id != rendered_lane._id) {
+        return `
+          <li>
+            <label>
+              <input
+                name=${lane._id}
+                type=checkbox
+                ${values && values[lane._id] ? 'checked' : ''}
+              >
+              ${lane.name}
+            </label>
+          </li>
+        `;
+      }
+      return ``;
+    }).join('');
+
+    if (! lanes.length) return 'Loading...';
+
     return `
       <p>To which other lanes would you like to ship?</p>
       <ul class="lane-input-list">
-        ${Lanes.find({}, { sort: { name: 1 } }).fetch().map((lane) => {
-          if (rendered_lane && lane._id != rendered_lane._id) return `
-            <li>
-              <label>
-                <input
-                  name=${lane._id}
-                  type=checkbox
-                  ${values && values[lane._id] ? 'checked' : ''}
-                >
-                ${lane.name}
-              </label>
-            </li>
-          `;
-          return ``;
-        }).join('')
-        }
+        ${lanes}
       </ul>
       <label>
         <input
@@ -50,18 +57,20 @@ module.exports = {
         ${Object.keys(manifest).map(key => {
           let lane;
           if (manifest[key] == 'on') lane = Lanes.findOne(key);
-          if (lane) return `
-            <li>
-              <a
-                href="/lanes/${lane.name}/ship"
-                class="success button"
-              >${lane.name}</a>
-              <a
-                href="/lanes/${lane.name}/charter"
-                class="button"
-              >charter</a>
-            </li>
-          `;
+          if (lane) {
+            return `
+              <li>
+                <a
+                  href="/lanes/${lane.name}/ship"
+                  class="success button"
+                >${lane.name}</a>
+                <a
+                  href="/lanes/${lane.name}/charter"
+                  class="button"
+                >charter</a>
+              </li>
+            `;
+          }
           return '';
         }).join('')}
       </ul>
