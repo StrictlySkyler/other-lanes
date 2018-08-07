@@ -53,7 +53,7 @@ module.exports = {
   render_work_preview: function (manifest) {
     return `
       <p>This shipment will start shipments to the following lanes:</p>
-      <ul class="lane-list">
+      <ul class="other-lane-list">
         ${Object.keys(manifest).map(key => {
           let lane;
           if (manifest[key] == 'on') lane = Lanes.findOne(key);
