@@ -103,7 +103,7 @@ module.exports = {
         return value == 0;
       });
       let total_length = targets.length + followups.length;
-
+      
       if (total_complete == total_length && all_shipments_successful) {
         console.log('Shipment successful for lane:', lane.name);
         exit_code = 0;
@@ -119,9 +119,9 @@ module.exports = {
 
     let collect_followups = function (target_lane) {
       let downstream = [];
-
+      
       if (target_lane.followup) {
-        let followup_lane = Lanes.findOne(target_lane.followup);
+        let followup_lane = Lanes.findOne(target_lane.followup._id);
 
         downstream.push(followup_lane);
 
@@ -129,15 +129,14 @@ module.exports = {
       }
 
       if (target_lane.salvage_plan) {
-        let salvage_plan_lane = Lanes.findOne(target_lane.salvage_plan);
+        let salvage_plan_lane = Lanes.findOne(target_lane.salvage_plan._id);
 
         downstream.push(salvage_plan_lane);
 
         downstream = downstream.concat(collect_followups(salvage_plan_lane));
       }
 
-      console.log(downstream)
-      return downstream;
+      return _.uniqBy(downstream, '_id');
     };
 
     let verify_lane_key = function (value, key) {
@@ -193,10 +192,8 @@ module.exports = {
           updated_shipment.exit_code
         }</a>`;
 
-        shipment.stdout.push({
-          date: new Date(),
-          result,
-        });
+        const date = new Date();
+        shipment.stdout[date] = result;
         Shipments.update(shipment._id, shipment);
         observer.stop();
       }
